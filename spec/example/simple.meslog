@@ -1,0 +1,9 @@
+this line is a normal line.
+
+the line below is a record line without tag.
+[MESLOG]{"params":{"x1":1,"x2":"label","x3":4.56},"data":{"y1":1.0}}
+[MESLOG]{"params":{"x1":2,"x2":"label","x3":4.56},"data":{"y1":2.0}}
+[MESLOG]{"params":{"x1":2,"x2":"label","x3":4.56},"data":{"y1":3.0}}
+
+the line below is a record with a tag.
+# [MESLOG.tag1]{"params":{"x1":2,"x2":"label","x3":4.56},"data":{"y1":5.0}}
