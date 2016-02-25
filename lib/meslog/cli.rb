@@ -71,8 +71,14 @@ EOS
         param_paths = []
         data_paths = []
 
+        if @meslog_file == "-"
+          file = $stdin
+        else
+          file = File.open(@meslog_file)
+        end
+
         # 1st pass: extract JSON records, parameter paths, and data paths
-        File.open(@meslog_file).each_line do |line|
+        file.each_line do |line|
           unless line =~ /^\[MESLOG(?:\.([a-z0-9_]+))?\](.+)$/
             next
           end
