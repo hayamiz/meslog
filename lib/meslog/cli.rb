@@ -133,6 +133,10 @@ EOS
           @x_axis = candidate_param_paths.first
         end
 
+        records = records.sort_by do |record|
+          record["params"][@x_axis]
+        end
+
         # 2nd-pass: grouping records with parameter values excluding x-axis.
         preset_param_paths = param_paths.select do |param_path|
           param_path != @x_axis
