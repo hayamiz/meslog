@@ -2,6 +2,10 @@
 
 This project defines MESLOG data format, and provides the implementation of MESLOG data analyzer utility.
 
+## What is MESLOG
+
+MESLOG is designed for ease the pain of data summarization and analysis of experimental result.
+
 ## MESLOG data format
 
 MESLOG data format is line-oriented text based format.
