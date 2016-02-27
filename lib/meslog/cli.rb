@@ -34,6 +34,10 @@ module Meslog
     def avg
       @values.inject(&:+) / @values.size.to_f
     end
+
+    def size
+      @values.size
+    end
   end
 
   module Command
@@ -172,12 +176,13 @@ EOS
           end.join(", ")
 
           puts "#== #{preset_desc} =="
-          puts("# " + ([@x_axis] + data_paths).join("\t"))
+          puts("# " + ([@x_axis, "num_records"] + data_paths).join("\t"))
           dataframe.each do |x, data_cells|
             puts([x,
+                  data_cells[data_paths.first].size,
                   *data_paths.map{|path|
-                    data_cells[path].avg
-                  }].map(&:to_s).join("\t"))
+                    fmt_num(data_cells[path].avg)
+                  }].map(&:to_s).join("\t\t"))
           end
 
           puts("")
@@ -186,6 +191,13 @@ EOS
         end
 
         true
+      end
+
+      def fmt_num(x)
+        w = 6
+        w -= (Math.log10(x)).ceil
+        fmtstr = "%.#{w}f"
+      sprintf(fmtstr, x)
       end
 
       def print_help(errmsg = nil, do_exit = false)
