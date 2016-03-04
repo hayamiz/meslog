@@ -45,44 +45,30 @@ module Meslog
       def parse_param_path(param_path_str)
         param_path_str
       end
-    end
 
-    class Agg < BaseCommand
-      def initialize
-        @parser = OptionParser.new
-        @parser.banner = <<EOS
-#{$progname} agg MESLOG_FILE [options]
-
-Options:
-EOS
-
-        @x_axis = nil
-        @parser.on('-x', '--x-axis PARAM_PATH') do |param_path|
-          @x_axis = parse_param_path(param_path)
+      def fmt_num(x)
+        w = 6
+        w -= (Math.log10(x)).ceil
+        if w < 0
+          w = 0
         end
+        fmtstr = "%.#{w}f"
+        sprintf(fmtstr, x)
       end
 
-      def run(argv)
-        @parser.parse!(argv)
-
-        if argv.size == 0
-          print_help("MESLOG_FILE required.", true)
+      def process_meslog(io_or_path)
+        if io_or_path.is_a? String
+          input = File.open(io_or_path)
+        else
+          input = io_or_path
         end
-
-        @meslog_file = argv.shift
 
         records = []
         param_paths = []
         data_paths = []
 
-        if @meslog_file == "-"
-          file = $stdin
-        else
-          file = File.open(@meslog_file)
-        end
-
         # 1st pass: extract JSON records, parameter paths, and data paths
-        file.each_line do |line|
+        input.each_line do |line|
           unless line =~ /^\[MESLOG(?:\.([a-z0-9_]+))?\](.+)$/
             next
           end
@@ -112,25 +98,27 @@ EOS
           return true
         end
 
-        if @x_axis.nil?
-          # auto-selecting x-axis
-          candidate_param_paths = []
+        const_param_paths = []
+        candidate_param_paths = []
 
-          fst_record = records.first
-          param_paths.each do |param_path|
-            (1..(records.size-1)).each do |idx|
-              if fst_record["params"][param_path] != records[idx]["params"][param_path]
-                candidate_param_paths.push(param_path)
-                break
-              end
-            end
+        fst_record = records.first
+        param_paths.each do |param_path|
+          if records.all? {|record|
+              fst_record["params"][param_path] == record["params"][param_path] }
+            const_param_paths.push(param_path)
+          else
+            candidate_param_paths.push(param_path)
           end
+        end
 
+        # auto-selecting x-axis
+        if @x_axis.nil?
           if candidate_param_paths.size == 0
             puts "[ERROR] no candidate for x-axis."
             exit(false)
           elsif candidate_param_paths.size > 1
-            puts "[ERROR] multiple candidates for x-axis auto-selection. Specify one by --x-axis option."
+            puts("[ERROR] multiple candidates for x-axis auto-selection. Specify one by --x-axis option.")
+            puts("  candidates: " + candidate_param_paths.join(", "))
             exit(false)
           end
 
@@ -145,6 +133,7 @@ EOS
         preset_param_paths = param_paths.select do |param_path|
           param_path != @x_axis
         end
+
         record_groups = Hash.new
         records.each do |record|
           preset_params = preset_param_paths.map do |param_path|
@@ -157,13 +146,14 @@ EOS
           group.push(record)
         end
 
-        # 3rd-pass: process each group
+        dataframe_list = []
+
+        # generate dataframe for each group
         record_groups.each do |preset_params, group|
-          dataframe = Hash.new
+          dataframe = ::Meslog::Dataframe.new(@x_axis, data_paths)
 
           group.each do |record|
             x = record["params"][@x_axis]
-            dataframe[x] ||= Hash.new
 
             data_paths.each do |data_path|
               dataframe[x][data_path] ||= DataCell.new
@@ -171,33 +161,134 @@ EOS
             end
           end
 
-          preset_desc = preset_param_paths.zip(preset_params).map do |path,param_value|
-            "#{path}=#{param_value}"
-          end.join(", ")
-
-          puts "#== #{preset_desc} =="
-          puts("# " + ([@x_axis, "num_records"] + data_paths).join("\t"))
-          dataframe.each do |x, data_cells|
-            puts([x,
-                  data_cells[data_paths.first].size,
-                  *data_paths.map{|path|
-                    fmt_num(data_cells[path].avg)
-                  }].map(&:to_s).join("\t\t"))
+          preset_param_paths.each do |path|
+            idx = preset_param_paths.index(path)
+            val = preset_params[idx]
+            dataframe.preset_params[path] = val
+            if const_param_paths.include?(path)
+              dataframe.const_params[path] = val
+            end
           end
 
-          puts("")
+          dataframe_list.push(dataframe)
+        end
+
+        return dataframe_list
+      end
+    end
+
+    class Plot < BaseCommand
+      def initialize
+        @parser = OptionParser.new
+        @parser.banner = <<EOS
+#{$progname} agg MESLOG_FILE [options]
+
+Options:
+EOS
+
+        @x_axis = nil
+        @parser.on('-x', '--x-axis PARAM_PATH') do |param_path|
+          @x_axis = parse_param_path(param_path)
+        end
+
+        @y_axis = nil
+        @parser.on('-y', '--y-axis PARAM_PATH') do |param_path|
+          @y_axis = parse_param_path(param_path)
+        end
+      end
+
+      def run(argv)
+        @parser.parse!(argv)
+
+        if argv.size == 0
+          print_help("MESLOG_FILE required.", true)
+        end
+
+        file = argv.shift
+
+        if file == "-"
+          file = $stdin
+        else
+          file = File.open(file)
+        end
+
+        ret = process_meslog(file)
+
+        record_groups = ret[:record_groups]
+        preset_param_paths = ret[:preset_param_paths]
+        const_param_paths = ret[:const_param_paths]
+        data_paths = ret[:data_paths]
+
+        record_groups.each do |preset_params, group|
+
+        end
+      end
+    end
+
+    class Agg < BaseCommand
+      def initialize
+        @parser = OptionParser.new
+        @parser.banner = <<EOS
+#{$progname} agg MESLOG_FILE [options]
+
+Options:
+EOS
+
+        @x_axis = nil
+        @parser.on('-x', '--x-axis PARAM_PATH') do |param_path|
+          @x_axis = parse_param_path(param_path)
+        end
+      end
+
+      def plaintext_frame_label(dataframe)
+        const_param_label = dataframe.const_params.map do |key, val|
+          "#{key}: #{val}"
+        end.join(", ")
+
+        other_param_label = dataframe.preset_params.select do |key, val|
+          ! dataframe.const_params.has_key?(key)
+        end.map do |key, val|
+          "#{key} = #{val}"
+        end.join(", ")
+
+        "#{const_param_label} || #{other_param_label}"
+      end
+
+      def run(argv)
+        @parser.parse!(argv)
+
+        if argv.size == 0
+          print_help("MESLOG_FILE required.", true)
+        end
+
+        file = argv.shift
+
+        if file == "-"
+          file = $stdin
+        else
+          file = File.open(file)
+        end
+
+        dataframe_list = process_meslog(file)
+
+        dataframe_list.each do |dataframe|
+          frame_label = plaintext_frame_label(dataframe)
+
+          puts("#== #{frame_label} ==")
+          puts("#" + ([dataframe.axis_path, "num_records"] + dataframe.data_paths).join("\t"))
+          dataframe.each do |x, data_cells|
+            puts([x,
+                 data_cells[dataframe.data_paths.first].size,
+                  *dataframe.data_paths.map{|path|
+                    fmt_num(data_cells[path].avg)
+                  }].map(&:to_s).join("\t"))
+          end
+
           puts("")
           puts("")
         end
 
         true
-      end
-
-      def fmt_num(x)
-        w = 6
-        w -= (Math.log10(x)).ceil
-        fmtstr = "%.#{w}f"
-      sprintf(fmtstr, x)
       end
 
       def print_help(errmsg = nil, do_exit = false)
