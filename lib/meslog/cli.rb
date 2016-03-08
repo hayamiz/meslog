@@ -251,7 +251,11 @@ EOS
           "#{key} = #{val}"
         end.join(", ")
 
-        "#{const_param_label} || #{other_param_label}"
+        if other_param_label.empty?
+          const_param_label
+        else
+          "#{const_param_label} || #{other_param_label}"
+        end
       end
 
       def run(argv)
@@ -275,7 +279,7 @@ EOS
           frame_label = plaintext_frame_label(dataframe)
 
           puts("#== #{frame_label} ==")
-          puts("#" + ([dataframe.axis_path, "num_records"] + dataframe.data_paths).join("\t"))
+          puts(([dataframe.axis_path, "num_records"] + dataframe.data_paths).join("\t"))
           dataframe.each do |x, data_cells|
             puts([x,
                  data_cells[dataframe.data_paths.first].size,
