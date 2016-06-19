@@ -42,8 +42,57 @@ module Meslog
 
   module Command
     class BaseCommand
+      def initialize
+        @parser = OptionParser.new
+
+        # setup common options here
+        @x_axis = nil
+        @parser.on('-x', '--x-axis PARAM_PATH') do |param_path|
+          @x_axis = parse_param_path(param_path)
+        end
+
+        @select_matchers = []
+        @parser.on('--select MATCHER_EXP', 'Select only data lines which satisfies MATCHER_EXP and discard other lines. MATCHER_EXP ::= <param_path> \'=\' <param_val>') do |matcher_exp|
+          @select_matchers.push(parse_matcher_exp(matcher_exp))
+        end
+
+        @filter_matchers = []
+        @parser.on('--filter MATCHER_EXP') do |matcher_exp|
+          @filter_matchers.push(parse_matcher_exp(matcher_exp))
+        end
+      end
+
       def parse_param_path(param_path_str)
         param_path_str
+      end
+
+      def parse_matcher_exp(matcher_exp_str)
+        # TODO: refine after deciding specs of param_path
+
+        # bogus checking
+        unless matcher_exp_str =~ /^([a-z0-9_]+)=(.+)$/
+          raise ArgumentError.new("Invalid argument for MATCHER_EXP: #{matcher_exp_str}")
+        end
+
+        param_path = $~[1]
+        param_val_str = $~[2]
+
+        case param_val_str
+        when /^\d+$/
+          param_val = param_val_str.to_i
+        when /^[-+]?(?:[0-9]+(\.[0-9]*)?|(\.[0-9]+))([eE][-+]?[0-9]+)?$/
+          param_val = param_val_str.to_f
+        else
+          param_val = param_val_str
+        end
+
+        ret = {param_path: param_path, param_val: param_val}
+
+        def ret.match?(record)
+          record["params"][self[:param_path]] == self[:param_val]
+        end
+
+        ret
       end
 
       def fmt_num(x)
@@ -82,6 +131,19 @@ module Meslog
 
           record = json.dup
           record["tag"] = tag
+
+          if @select_matchers.size > 0
+            matched = @select_matchers.any? do |matcher|
+              matcher.match?(record)
+            end
+
+            next unless matched
+          end
+
+          filtered = @filter_matchers.any? do |matcher|
+            matcher.match?(record)
+          end
+          next if filtered
 
           records.push(record)
 
@@ -179,17 +241,13 @@ module Meslog
 
     class Plot < BaseCommand
       def initialize
-        @parser = OptionParser.new
+        super()
+
         @parser.banner = <<EOS
 #{$progname} agg MESLOG_FILE [options]
 
 Options:
 EOS
-
-        @x_axis = nil
-        @parser.on('-x', '--x-axis PARAM_PATH') do |param_path|
-          @x_axis = parse_param_path(param_path)
-        end
 
         @y_axis = nil
         @parser.on('-y', '--y-axis PARAM_PATH') do |param_path|
@@ -227,17 +285,13 @@ EOS
 
     class Agg < BaseCommand
       def initialize
-        @parser = OptionParser.new
+        super()
+
         @parser.banner = <<EOS
 #{$progname} agg MESLOG_FILE [options]
 
 Options:
 EOS
-
-        @x_axis = nil
-        @parser.on('-x', '--x-axis PARAM_PATH') do |param_path|
-          @x_axis = parse_param_path(param_path)
-        end
       end
 
       def plaintext_frame_label(dataframe)
