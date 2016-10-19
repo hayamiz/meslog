@@ -13,7 +13,7 @@ Actually any text files are qualified to be MESLOG files.
 A MESLOG file is composed with (1) MESLOG data line and (2) normal line.
 An example of an MESLOG data line is like:
 
-    [MESLOG.sample]{"params":{"num_threads", 1},"data":{"flops": 1.0e9}}
+    [MESLOG.sample]{"params":{"num_threads": 1},"data":{"flops": 1.0e9}}
 
 `[MESLOG.sample]` is a mark that means this line might be special data line tagged by "sample".
 After the mark, a string of JSON map object follows, which has two keys "params" and "data".
