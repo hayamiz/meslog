@@ -12,8 +12,15 @@ module Meslog
       def run(argv)
         $progname = $0
 
-        if argv.first == "-h" || argv.first == "--help"
-          puts "TODO: show help"
+        if argv.empty? || argv.include?("-h") || argv.include?("--help")
+          puts <<EOS
+Usage: meslog COMMAND [args]
+
+Commands:
+  agg	Aggregate meslog file
+  plot	Aggregate meslog file
+EOS
+          return 1
         elsif argv.first == "agg"
           $cmdname = argv.shift
           return ::Meslog::Command::Agg.new.run(argv)
@@ -244,7 +251,7 @@ module Meslog
         super()
 
         @parser.banner = <<EOS
-#{$progname} agg MESLOG_FILE [options]
+#{$progname} plot MESLOG_FILE [options]
 
 Options:
 EOS
