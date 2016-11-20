@@ -12,7 +12,7 @@ module Meslog
       def run(argv)
         $progname = $0
 
-        if argv.empty? || argv.include?("-h") || argv.include?("--help")
+        if argv.empty?
           puts <<EOS
 Usage: meslog COMMAND [args]
 
